@@ -14,10 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import Dict, Optional
+from typing import Optional
 
 from sqlalchemy.sql.expression import ColumnClause
 
+from superset.constants import TimeGrain
 from superset.db_engine_specs.base import BaseEngineSpec, TimestampExpression
 
 
@@ -30,22 +31,22 @@ class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
     allows_alias_in_orderby = False
 
     # Pinot does its own conversion below
-    _time_grain_expressions: Dict[Optional[str], str] = {
-        "PT1S": "1:SECONDS",
-        "PT1M": "1:MINUTES",
-        "PT5M": "5:MINUTES",
-        "PT10M": "10:MINUTES",
-        "PT15M": "15:MINUTES",
-        "PT30M": "30:MINUTES",
-        "PT1H": "1:HOURS",
-        "P1D": "1:DAYS",
-        "P1W": "week",
-        "P1M": "month",
-        "P3MY": "quarter",
-        "P1Y": "year",
+    _time_grain_expressions = {
+        TimeGrain.SECOND: "1:SECONDS",
+        TimeGrain.MINUTE: "1:MINUTES",
+        TimeGrain.FIVE_MINUTES: "5:MINUTES",
+        TimeGrain.TEN_MINUTES: "10:MINUTES",
+        TimeGrain.FIFTEEN_MINUTES: "15:MINUTES",
+        TimeGrain.THIRTY_MINUTES: "30:MINUTES",
+        TimeGrain.HOUR: "1:HOURS",
+        TimeGrain.DAY: "1:DAYS",
+        TimeGrain.WEEK: "week",
+        TimeGrain.MONTH: "month",
+        TimeGrain.QUARTER: "quarter",
+        TimeGrain.YEAR: "year",
     }
 
-    _python_to_java_time_patterns: Dict[str, str] = {
+    _python_to_java_time_patterns: dict[str, str] = {
         "%Y": "yyyy",
         "%m": "MM",
         "%d": "dd",
@@ -54,19 +55,19 @@ class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
         "%S": "ss",
     }
 
-    _use_date_trunc_function: Dict[str, bool] = {
-        "PT1S": False,
-        "PT1M": False,
-        "PT5M": False,
-        "PT10M": False,
-        "PT15M": False,
-        "PT30M": False,
-        "PT1H": False,
-        "P1D": False,
-        "P1W": True,
-        "P1M": True,
-        "P3M": True,
-        "P1Y": True,
+    _use_date_trunc_function: dict[str, bool] = {
+        TimeGrain.SECOND: False,
+        TimeGrain.MINUTE: False,
+        TimeGrain.FIVE_MINUTES: False,
+        TimeGrain.TEN_MINUTES: False,
+        TimeGrain.FIFTEEN_MINUTES: False,
+        TimeGrain.THIRTY_MINUTES: False,
+        TimeGrain.HOUR: False,
+        TimeGrain.DAY: False,
+        TimeGrain.WEEK: True,
+        TimeGrain.MONTH: True,
+        TimeGrain.QUARTER: True,
+        TimeGrain.YEAR: True,
     }
 
     @classmethod
@@ -77,7 +78,9 @@ class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
         time_grain: Optional[str],
     ) -> TimestampExpression:
         if not pdf:
+            # If there is no python date format (pdf) given then we cannot determine how to correctly handle the timestamp
             raise NotImplementedError(f"Empty date format for '{col}'")
+
         is_epoch = pdf in ("epoch_s", "epoch_ms")
 
         # The DATETIMECONVERT pinot udf is documented at
@@ -98,12 +101,13 @@ class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
         else:
             seconds_or_ms = "MILLISECONDS" if pdf == "epoch_ms" else "SECONDS"
             tf = f"1:{seconds_or_ms}:EPOCH"
+
         if time_grain:
             granularity = cls.get_time_grain_expressions().get(time_grain)
             if not granularity:
-                raise NotImplementedError(f"No pinot grain spec for '{time_grain}'")
+                raise NotImplementedError(f"No Pinot grain spec for '{time_grain}'")
         else:
-            return TimestampExpression("{{col}}", col)
+            return TimestampExpression("{col}", col)
 
         # In pinot the output is a string since there is no timestamp column like pg
         if cls._use_date_trunc_function.get(time_grain):
