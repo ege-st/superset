@@ -105,7 +105,7 @@ class PinotEngineSpec(BaseEngineSpec):  # pylint: disable=abstract-method
         if time_grain:
             granularity = cls.get_time_grain_expressions().get(time_grain)
             if not granularity:
-                raise NotImplementedError(f"No pinot grain spec for '{time_grain}'")
+                raise NotImplementedError(f"No Pinot grain spec for '{time_grain}'")
         else:
             return TimestampExpression("{col}", col)
 
